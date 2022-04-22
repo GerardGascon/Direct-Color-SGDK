@@ -134,7 +134,7 @@ init_hardware:
         move.l  #0x0000000A,(%a3)        /* entry 32 (black) and 33 (red) */
 
         move.w  #0x8174,(%a4)            /* display on, vblank enabled */
-        move    #0x2000,sr              /* enable interrupts */
+        move    #0x2000,%sr              /* enable interrupts */
 
         movem.l (%sp)+,%d2-%d7/%a2-%a6
         rts
@@ -219,9 +219,9 @@ PSGReset:
         .global set_sr
 set_sr:
         moveq   #0,%d0
-        move.w  sr,%d0
+        move.w  %sr,%d0
         move.l  4(%sp),%d1
-        move.w  %d1,sr
+        move.w  %d1,%sr
         rts
 
 | short get_pad(short pad);
@@ -500,7 +500,7 @@ z80_memcpy:
 dma_screen:
         move.l  4(%sp),%d0                /* buffer */
         movem.l %d2-%d7/%a2-%a6,-(%sp)
-        move.w  #0x2700,sr
+        move.w  #0x2700,%sr
 
         /* self-modifying code for buffer start */
         lsr.l   #1,%d0                   /* word bus */

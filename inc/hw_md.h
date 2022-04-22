@@ -35,8 +35,6 @@
 extern "C" {
 #endif
 
-	extern volatile unsigned int gTicks;
-
 	extern short set_sr(short new_sr);
 	extern short get_pad(short pad);
 

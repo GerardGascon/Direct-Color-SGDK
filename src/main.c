@@ -4,6 +4,7 @@
 #include "../inc/files.h"
 
 extern unsigned short bitmap;
+volatile unsigned int gTicks;
 
 int main()
 {
