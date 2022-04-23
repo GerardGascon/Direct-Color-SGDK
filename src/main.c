@@ -7,7 +7,6 @@
 
 extern unsigned short bitmap;
 volatile unsigned int gTicks;
-int filePtr1 = 131072;
 
 int main(){
 	clear_screen();

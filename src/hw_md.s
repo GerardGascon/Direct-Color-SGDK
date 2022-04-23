@@ -176,6 +176,8 @@ set_palette:
 | dma buffer to background cmap entry
 	.global dma_screen
 dma_screen:
+	/*Address is stored inside the 4(%sp)*/
+
 	move.l  4(%sp),%d0                /* buffer */
 	movem.l %d2-%d7/%a2-%a6,-(%sp)
 	move.w  #0x2700,%sr
