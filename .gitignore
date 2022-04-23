@@ -98,6 +98,7 @@ StyleCopReport.xml
 *.out
 rom_head.bin
 symbol.txt
+out/[Ss]rc
 
 # Chutzpah Test files
 _Chutzpah*
