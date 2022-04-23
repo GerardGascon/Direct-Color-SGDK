@@ -93,6 +93,12 @@ StyleCopReport.xml
 *.svclog
 *.scc
 
+# Export files from SGDK
+*.o
+*.out
+rom_head.bin
+symbol.txt
+
 # Chutzpah Test files
 _Chutzpah*
 

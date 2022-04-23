@@ -1,11 +1,11 @@
 file1:
-        .incbin "res/atari1.bin"
+	.incbin "res/atari1.bin"
 fileEnd1:
 
-        .align  131072
+	.align  131072
 
-        .global filePtr
+	.global filePtr
 filePtr:
-        .long   file1
+	.long   file1
 
-        .align  4
+	.align  4
