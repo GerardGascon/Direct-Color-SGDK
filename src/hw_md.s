@@ -9,16 +9,6 @@
 init_hardware:
         movem.l %d2-%d7/%a2-%a6,-(%sp)
 
-| init joyports
-        lea     0xA10000,%a5
-        move.b  #0x40,0x09(%a5)
-        move.b  #0x40,0x0B(%a5)
-        move.b  #0x40,0x03(%a5)
-        move.b  #0x40,0x05(%a5)
-
-        lea     0xC00000,%a3             /* VDP data reg */
-        lea     0xC00004,%a4             /* VDP cmd/sts reg */
-
 | wait on VDP DMA (in case we reset in the middle of DMA)
         move.w  #0x8114,(%a4)            /* display off, dma enabled */
 0:
@@ -66,64 +56,6 @@ init_hardware:
 4:
         move.l  %d0,(%a3)
         dbra    %d4,4b
-
-| halt Z80 and init FM chip
-        /* Allow the 68k to access the FM chip */
-        move.w  #0x100,0xA11100
-        move.w  #0x100,0xA11200
-
-| reset YM2612
-        lea     FMReset(%pc),%a5
-        lea     0xA00000,%a0
-        move.w  #0x4000,%d1
-        moveq   #26,%d2
-5:
-        move.b  (%a5)+,%d1                /* FM reg */
-        move.b  (%a5)+,0(%a0,%d1.w)        /* FM data */
-        nop
-        nop
-        dbra    %d2,5b
-
-        moveq   #0x30,%d0
-        moveq   #0x5F,%d2
-6:
-        move.b  %d0,0x4000(%a0)           /* FM reg */
-        nop
-        nop
-        move.b  #0xFF,0x4001(%a0)        /* FM data */
-        nop
-        nop
-        move.b  %d0,0x4002(%a0)           /* FM reg */
-        nop
-        nop
-        move.b  #0xFF,0x4003(%a0)        /* FM data */
-        nop
-        nop
-        addq.b  #1,%d0
-        dbra    %d2,6b
-
-| reset PSG
-        lea     PSGReset(%pc),%a5
-        lea     0xC00000,%a0
-        move.b  (%a5)+,0x0011(%a0)
-        move.b  (%a5)+,0x0011(%a0)
-        move.b  (%a5)+,0x0011(%a0)
-        move.b  (%a5),0x0011(%a0)
-
-| load font tile data
-        move.w  #0x8F02,(%a4)            /* INC = 2 */
-        move.l  #0x40000000,(%a4)        /* write VRAM address 0 */
-        lea     font_data,%a0
-        move.w  #0x6B*8-1,%d2
-7:
-        move.l  (%a0)+,%d0                /* font fg mask */
-        move.l  %d0,%d1
-        not.l   %d1                      /* font bg mask */
-        andi.l  #0x11111111,%d0          /* set font fg color */
-        andi.l  #0x00000000,%d1          /* set font bg color */
-        or.l    %d1,%d0
-        move.l  %d0,(%a3)                 /* set tile line */
-        dbra    %d2,7b
 
 | set the default palette for text
         move.l  #0xC0000000,(%a4)        /* write CRAM address 0 */
@@ -203,87 +135,6 @@ FMReset:
         .byte   2,0xB6
         .byte   3,0x00
 
-| PSG register initialization values
-PSGReset:
-        .byte   0x9f    /* set ch0 attenuation to max */
-        .byte   0xbf    /* set ch1 attenuation to max */
-        .byte   0xdf    /* set ch2 attenuation to max */
-        .byte   0xff    /* set ch3 attenuation to max */
-
-        .align  2
-
-| short set_sr(short new_sr);
-| set SR, return previous SR
-| entry: arg = SR value
-| exit:  %d0 = previous SR value
-        .global set_sr
-set_sr:
-        moveq   #0,%d0
-        move.w  %sr,%d0
-        move.l  4(%sp),%d1
-        move.w  %d1,%sr
-        rts
-
-| short get_pad(short pad);
-| return buttons for selected pad
-| entry: arg = pad index (0 or 1)
-| exit:  %d0 = pad value (0 0 0 1 M X Y Z S A C B R L D U) or (0 0 0 0 0 0 0 0 S A C B R L D U)
-        .global get_pad
-get_pad:
-        move.l  %d2,-(%sp)
-        move.l  8(%sp),%d0        /* first arg is pad number */
-        cmpi.w  #1,%d0
-        bhi     no_pad
-        add.w   %d0,%d0
-        addi.l  #0xA10003,%d0    /* pad control register */
-        movea.l %d0,%a0
-        bsr.b   get_input       /* - 0 s a 0 0 d u - 1 c b r l d u */
-        move.w  %d0,%d1
-        andi.w  #0x0C00,%d0
-        bne.b   no_pad
-        bsr.b   get_input       /* - 0 s a 0 0 d u - 1 c b r l d u */
-        bsr.b   get_input       /* - 0 s a 0 0 0 0 - 1 c b m x y z */
-        move.w  %d0,%d2
-        bsr.b   get_input       /* - 0 s a 1 1 1 1 - 1 c b r l d u */
-        andi.w  #0x0F00,%d0      /* 0 0 0 0 1 1 1 1 0 0 0 0 0 0 0 0 */
-        cmpi.w  #0x0F00,%d0
-        beq.b   common          /* six button pad */
-        move.w  #0x010F,%d2      /* three button pad */
-common:
-        lsl.b   #4,%d2           /* - 0 s a 0 0 0 0 m x y z 0 0 0 0 */
-        lsl.w   #4,%d2           /* 0 0 0 0 m x y z 0 0 0 0 0 0 0 0 */
-        andi.w  #0x303F,%d1      /* 0 0 s a 0 0 0 0 0 0 c b r l d u */
-        move.b  %d1,%d2           /* 0 0 0 0 m x y z 0 0 c b r l d u */
-        lsr.w   #6,%d1           /* 0 0 0 0 0 0 0 0 s a 0 0 0 0 0 0 */
-        or.w    %d1,%d2           /* 0 0 0 0 m x y z s a c b r l d u */
-        eori.w  #0x1FFF,%d2      /* 0 0 0 1 M X Y Z S A C B R L D U */
-        move.w  %d2,%d0
-        move.l  (%sp)+,%d2
-        rts
-
-| 3-button/6-button pad not found
-no_pad:
-        .ifdef  HAS_SMS_PAD
-        move.b  (%a0),%d0         /* - 1 c b r l d u */
-        andi.w  #0x003F,%d0      /* 0 0 0 0 0 0 0 0 0 0 c b r l d u */
-        eori.w  #0x003F,%d0      /* 0 0 0 0 0 0 0 0 0 0 C B R L D U */
-        .else
-        move.w  #0xF000,%d0      /* SEGA_CTRL_NONE */
-        .endif
-        move.l  (%sp)+,%d2
-        rts
-
-| read single phase from controller
-get_input:
-        move.b  #0x00,(%a0)
-        nop
-        nop
-        move.b  (%a0),%d0
-        move.b  #0x40,(%a0)
-        lsl.w   #8,%d0
-        move.b  (%a0),%d0
-        rts
-
 | void clear_screen(void);
 | clear the name table for plane B
         .global clear_screen
@@ -326,86 +177,6 @@ next_vram:
         move.w  %d0,0xC00000             /* set vram word */
         rts
 
-| void clear_text(void);
-| clear the name table for plane A
-        .global clear_text
-clear_text:
-        moveq   #0,%d0
-        lea     0xC00000,%a0
-        move.w  #0x8F02,4(%a0)           /* set INC to 2 */
-        move.l  #0x40000003,%d1          /* VDP write VRAM at 0xC000 (scroll plane A) */
-        move.l  %d1,4(%a0)                /* write VRAM at plane A start */
-        move.w  #64*32-1,%d1
-1:
-        move.w  %d0,(%a0)                 /* clear name pattern */
-        dbra    %d1,1b
-        rts
-
-| void put_str(char *str, int color, int x, int y);
-| put string characters to the screen
-| entry: first arg = string address
-|        second arg = 0 for normal color font, N * 0x0200 for alternate color font (use CP bits for different colors)
-|        third arg = column at which to start printing
-|        fourth arg = row at which to start printing
-        .global put_str
-put_str:
-        movea.l 4(%sp),%a0                /* string pointer */
-        move.l  8(%sp),%d0                /* color palette */
-        lea     0xC00000,%a1
-        move.w  #0x8F02,4(%a1)           /* set INC to 2 */
-        move.l  16(%sp),%d1               /* y coord */
-        lsl.l   #6,%d1
-        or.l    12(%sp),%d1               /* cursor y<<6 | x */
-        add.w   %d1,%d1                   /* pattern names are words */
-        swap    %d1
-        ori.l   #0x40000003,%d1          /* OR cursor with VDP write VRAM at 0xC000 (scroll plane A) */
-        move.l  %d1,4(%a1)                /* write VRAM at location of cursor in plane A */
-1:
-        move.b  (%a0)+,%d0
-        subi.b  #0x20,%d0                /* font starts at space */
-        move.w  %d0,(%a1)                 /* set pattern name for character */
-        tst.b   (%a0)
-        bne.b   1b
-        rts
-
-| void put_chr(char chr, int color, int x, int y);
-| put a character to the screen
-| entry: first arg = character
-|        second arg = 0 for normal color font, N * 0x0200 for alternate color font (use CP bits for different colors)
-|        third arg = column at which to start printing
-|        fourth arg = row at which to start printing
-        .global put_chr
-put_chr:
-        movea.l 4(%sp),%a0                /* character */
-        move.l  8(%sp),%d0                /* color palette */
-        lea     0xC00000,%a1
-        move.w  #0x8F02,4(%a1)           /* set INC to 2 */
-        move.l  16(%sp),%d1               /* y coord */
-        lsl.l   #6,%d1
-        or.l    12(%sp),%d1               /* cursor y<<6 | x */
-        add.w   %d1,%d1                   /* pattern names are words */
-        swap    %d1
-        ori.l   #0x40000003,%d1          /* OR cursor with VDP write VRAM at 0xC000 (scroll plane A) */
-        move.l  %d1,4(%a1)                /* write VRAM at location of cursor in plane A */
-
-        move.l  %a0,%d1
-        move.b  %d1,%d0
-        subi.b  #0x20,%d0                /* font starts at space */
-        move.w  %d0,(%a1)                 /* set pattern name for character */
-        rts
-
-| void delay(int count);
-| wait count number of vertical blank periods - relies on vblank running
-| entry: arg = count
-        .global delay
-delay:
-        move.l  4(%sp),%d0                /* count */
-        add.l   gTicks,%d0               /* add current vblank count */
-0:
-        cmp.l   gTicks,%d0
-        bgt.b   0b
-        rts
-
 | void set_palette(short *pal, int start, int count)
 | copy count entries pointed to by pal into the palette starting at the index start
 | entry: pal = pointer to an array of words holding the colors
@@ -428,65 +199,6 @@ set_palette:
         move.w  (%a0)+,(%a1)              /* copy color to palette */
         dbra    %d1,0b
         rts
-
-| void z80_busrequest(int flag)
-| set Z80 bus request
-| entry: flag = request/release
-        .global z80_busrequest
-z80_busrequest:
-        move.l  4(%sp),%d0                /* flag */
-        andi.w  #0x0100,%d0
-        move.w  %d0,0xA11100             /* set bus request */
-0:
-        move.w  0xA11100,%d1
-        and.w   %d0,%d1
-        bne.b   0b
-        rts
-
-| void z80_reset(int flag)
-| set Z80 reset
-| entry: flag = assert/clear
-        .global z80_reset
-z80_reset:
-        move.l  4(%sp),%d0                /* flag */
-        andi.w  #0x0100,%d0
-        move.w  %d0,0xA11200             /* set reset */
-        rts
-
-| void z80_memclr(void *dst, int len)
-| clear Z80 sram
-| entry: dst = pointer to sram to clear
-|        len = length of memory to copy
-| note: you need to request the Z80 bus first
-        .global z80_memclr
-z80_memclr:
-        movea.l 4(%sp),%a1                /* dst */
-        move.l  8(%sp),%d0                /* len */
-        subq.w  #1,%d0
-        moveq   #0,%d1
-0:
-        move.b  %d1,(%a1)+
-        dbra    %d0,0b
-        rts
-
-| void z80_memcpy(void *dst, void *src, int len)
-| copy memory to Z80 sram
-| entry: dst = pointer to memory to copy to
-|        src = pointer to memory to copy from
-|        len = length of memory to copy
-| note: you need to request the Z80 bus first
-        .global z80_memcpy
-z80_memcpy:
-        movea.l 4(%sp),%a1                /* dst */
-        movea.l 8(%sp),%a0                /* src */
-        move.l  12(%sp),%d0               /* len */
-        subq.w  #1,%d0
-0:
-        move.b  (%a0)+,%d1
-        move.b  %d1,(%a1)+
-        dbra    %d0,0b
-        rts
-
 
 | Any following functions need to be run from ram
 
@@ -565,7 +277,6 @@ dma_src:
 
         /* do other tasks here */
         pea     0.w
-        jsr     get_pad
         addq.l  #4,%sp
         andi.w  #0x0070,%d0
         bne.b   exit_dma
@@ -580,7 +291,6 @@ exit_dma:
         cmp.l   gTicks,%d0
         bne.b   1b
         pea     0.w
-        jsr     get_pad
         addq.l  #4,%sp
         andi.w  #0x0070,%d0
         bne.b   0b

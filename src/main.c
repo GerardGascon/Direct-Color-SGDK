@@ -8,16 +8,12 @@ volatile unsigned int gTicks;
 
 int main()
 {
-    int curr = 0;
-
     clear_screen();
 
     while (1)
     {
         // show bitmap
-        dma_screen((unsigned short*)filePtr[curr]);
-
-        curr = (curr + 1) % 7;
+        dma_screen((unsigned short*)filePtr);
     }
 
     clear_screen();

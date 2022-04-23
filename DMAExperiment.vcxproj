@@ -86,7 +86,6 @@
   <ItemDefinitionGroup>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="src\font.c" />
     <ClCompile Include="src\main.c" />
   </ItemGroup>
   <ItemGroup>
