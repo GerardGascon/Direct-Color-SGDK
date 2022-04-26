@@ -1,5 +1,5 @@
 file1:
-	.incbin "res/overscanTest.bin"
+	.incbin "res/snowman.bin"
 fileEnd1:
 
 	.align  131072
